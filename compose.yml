@@ -1,0 +1,81 @@
+
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:14-alpine
+    ports:
+      - 5435:5432
+    volumes:
+      - my-volume:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=12345
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=expend_db
+  app:
+    image: 'homework_img'
+    build:
+      context: .
+    container_name: app
+    depends_on:
+      - postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=12345
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/expend_db
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=12345
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+
+    ports:
+      - "8080:8080"
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - 5672:5672
+      - 15672:15672
+
+  postgres_keycloak:
+    image: postgres:16.2
+    volumes:
+      - keycloak_vol:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: expend_db2
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 12345
+    networks:
+      - keycloak_network
+
+  keycloak:
+      image: quay.io/keycloak/keycloak:23.0.6
+      command: start
+      environment:
+        KC_HOSTNAME: localhost
+        KC_HOSTNAME_PORT: 8080
+        KC_HOSTNAME_STRICT_BACKCHANNEL: false
+        KC_HTTP_ENABLED: true
+        KC_HOSTNAME_STRICT_HTTPS: false
+        KC_HEALTH_ENABLED: true
+        KEYCLOAK_ADMIN: admin
+        KEYCLOAK_ADMIN_PASSWORD: admin
+        KC_DB: postgres
+        KC_DB_URL: jdbc:postgresql://postgres_keycloak/expend_db2
+        KC_DB_USERNAME: postgres
+        KC_DB_PASSWORD: 12345
+      ports:
+        - 8080:8080
+        - 8443:8443
+      restart: always
+      depends_on:
+        - postgres_keycloak
+      networks:
+        - keycloak_network
+
+volumes:
+  my-volume:
+  keycloak_vol:
+
+networks:
+  keycloak_network:
+    driver: bridge
